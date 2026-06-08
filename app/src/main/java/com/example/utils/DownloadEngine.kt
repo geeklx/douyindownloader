@@ -26,6 +26,7 @@ sealed class DownloadProgressEvent {
 object DownloadEngine {
     private const val TAG = "DownloadEngine"
     private const val NUM_THREADS = 3
+    private const val USER_AGENT = "Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1"
 
     private val client = OkHttpClient.Builder()
         .connectTimeout(30, TimeUnit.SECONDS)
@@ -62,7 +63,7 @@ object DownloadEngine {
                 val headRequest = Request.Builder()
                     .url(item.url)
                     .head()
-                    .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+                    .header("User-Agent", USER_AGENT)
                     .build()
 
                 var contentLength = -1L
@@ -84,7 +85,7 @@ object DownloadEngine {
                     val getRequest = Request.Builder()
                         .url(item.url)
                         .header("Range", "bytes=0-1")
-                        .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+                        .header("User-Agent", USER_AGENT)
                         .build()
 
                     client.newCall(getRequest).execute().use { response ->
@@ -158,7 +159,7 @@ object DownloadEngine {
 
         val request = Request.Builder()
             .url(item.url)
-            .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+            .header("User-Agent", USER_AGENT)
             .build()
 
         client.newCall(request).execute().use { response ->
@@ -277,7 +278,7 @@ object DownloadEngine {
                 val request = Request.Builder()
                     .url(item.url)
                     .header("Range", "bytes=$segmentStart-$segmentEnd")
-                    .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+                    .header("User-Agent", USER_AGENT)
                     .build()
 
                 client.newCall(request).execute().use { response ->

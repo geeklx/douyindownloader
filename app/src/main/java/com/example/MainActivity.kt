@@ -980,7 +980,8 @@ fun VideoPreviewOverlay(
 fun VideoPlayer(videoUrl: String, modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val lastUrl = remember { mutableStateOf("") }
-    
+    val userAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1"
+
     AndroidView(
         modifier = modifier,
         factory = { ctx ->
@@ -988,7 +989,7 @@ fun VideoPlayer(videoUrl: String, modifier: Modifier = Modifier) {
                 val mediaController = MediaController(ctx)
                 mediaController.setAnchorView(this)
                 setMediaController(mediaController)
-                setVideoPath(videoUrl)
+                setVideoURI(android.net.Uri.parse(videoUrl), mapOf("User-Agent" to userAgent))
                 setOnPreparedListener { mp ->
                     mp.isLooping = true
                     start()
@@ -1002,7 +1003,7 @@ fun VideoPlayer(videoUrl: String, modifier: Modifier = Modifier) {
         update = { videoView ->
             if (lastUrl.value != videoUrl) {
                 lastUrl.value = videoUrl
-                videoView.setVideoPath(videoUrl)
+                videoView.setVideoURI(android.net.Uri.parse(videoUrl), mapOf("User-Agent" to userAgent))
                 videoView.start()
             }
         }
