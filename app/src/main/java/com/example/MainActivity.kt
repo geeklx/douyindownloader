@@ -52,6 +52,8 @@ import com.example.data.DownloadItem
 import com.example.ui.DownloadViewModel
 import com.example.ui.ParseState
 import com.example.ui.theme.MyApplicationTheme
+import com.example.ui.theme.DouyinRed
+import com.example.ui.theme.DouyinCyan
 import java.io.File
 
 class MainActivity : ComponentActivity() {
@@ -121,19 +123,23 @@ fun MainAppScreen() {
                             modifier = Modifier
                                 .size(36.dp)
                                 .clip(RoundedCornerShape(10.dp))
-                                .background(MaterialTheme.colorScheme.primary),
+                                .background(
+                                    Brush.linearGradient(
+                                        colors = listOf(DouyinRed, DouyinCyan)
+                                    )
+                                ),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
                                 imageVector = Icons.Default.DownloadForOffline,
                                 contentDescription = "Logo",
-                                tint = MaterialTheme.colorScheme.onPrimary,
+                                tint = Color.White,
                                 modifier = Modifier.size(22.dp)
                             )
                         }
                         Text(
-                            text = if (isSelectionMode) "已选择 ${selectedItemIds.size} 项" else "TikSaver Pro",
-                            fontWeight = FontWeight.Bold,
+                            text = if (isSelectionMode) "已选择 ${selectedItemIds.size} 项" else "抖音去水印下载器",
+                            fontWeight = FontWeight.ExtraBold,
                             style = MaterialTheme.typography.titleLarge,
                             color = MaterialTheme.colorScheme.onBackground
                         )
@@ -170,20 +176,20 @@ fun MainAppScreen() {
         bottomBar = {
             NavigationBar(
                 containerColor = MaterialTheme.colorScheme.surface,
-                tonalElevation = 0.dp,
+                tonalElevation = 8.dp,
                 modifier = Modifier.navigationBarsPadding()
             ) {
                 NavigationBarItem(
                     selected = currentTab == 0,
                     onClick = { currentTab = 0 },
                     icon = { Icon(Icons.Default.Download, contentDescription = "去水印下载") },
-                    label = { Text("解析下载") }
+                    label = { Text("解析下载", fontWeight = if (currentTab == 0) FontWeight.Bold else FontWeight.Normal) }
                 )
                 NavigationBarItem(
                     selected = currentTab == 1,
                     onClick = { currentTab = 1 },
                     icon = { Icon(Icons.Default.SlowMotionVideo, contentDescription = "下载记录") },
-                    label = { Text("下载记录") }
+                    label = { Text("下载记录", fontWeight = if (currentTab == 1) FontWeight.Bold else FontWeight.Normal) }
                 )
             }
         }
@@ -233,8 +239,8 @@ fun MainAppScreen() {
             if (clipboardPromptUrl != null) {
                 AlertDialog(
                     onDismissRequest = { viewModel.dismissClipboardPrompt() },
-                    icon = { Icon(Icons.Filled.Link, contentDescription = "检测到链接", tint = MaterialTheme.colorScheme.primary) },
-                    title = { Text("发现抖音复制链接") },
+                    icon = { Icon(Icons.Filled.Link, contentDescription = "检测到链接", tint = DouyinRed) },
+                    title = { Text("发现已复制的抖音链接", fontWeight = FontWeight.Bold) },
                     text = {
                         Text(
                             text = "剪贴板检测到可能有视频链接：\n\n${clipboardPromptUrl}\n\n是否立即开始解析？",
@@ -249,8 +255,8 @@ fun MainAppScreen() {
                                 viewModel.dismissClipboardPrompt()
                             },
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.primary,
-                                contentColor = MaterialTheme.colorScheme.onPrimary
+                                containerColor = DouyinRed,
+                                contentColor = Color.White
                             )
                         ) {
                             Text("立即解析")
@@ -292,10 +298,22 @@ fun DownloaderPanel(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(24.dp))
-                    .background(MaterialTheme.colorScheme.surface)
+                    .background(
+                        Brush.linearGradient(
+                            colors = listOf(
+                                DouyinRed.copy(alpha = 0.08f),
+                                DouyinCyan.copy(alpha = 0.08f)
+                            )
+                        )
+                    )
                     .border(
                         1.dp,
-                        MaterialTheme.colorScheme.outline.copy(alpha = 0.35f),
+                        Brush.horizontalGradient(
+                            colors = listOf(
+                                DouyinRed.copy(alpha = 0.35f),
+                                DouyinCyan.copy(alpha = 0.35f)
+                            )
+                        ),
                         RoundedCornerShape(24.dp)
                     )
                     .padding(24.dp)
@@ -308,20 +326,29 @@ fun DownloaderPanel(
                         modifier = Modifier
                             .size(56.dp)
                             .clip(RoundedCornerShape(16.dp))
-                            .background(MaterialTheme.colorScheme.primary),
+                            .background(
+                                Brush.linearGradient(
+                                    colors = listOf(DouyinRed, DouyinCyan)
+                                )
+                            ),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(Icons.Default.DownloadForOffline, contentDescription = "Logo", tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(36.dp))
+                        Icon(
+                            imageVector = Icons.Default.DownloadForOffline,
+                            contentDescription = "Logo",
+                            tint = Color.White,
+                            modifier = Modifier.size(36.dp)
+                        )
                     }
                     Column {
                         Text(
-                            text = "极速无水印下载",
+                            text = "极速去水印下载",
                             fontWeight = FontWeight.ExtraBold,
                             fontSize = 20.sp,
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         Text(
-                            text = "精简多线程极速断点续传引擎",
+                            text = "多线程分块加载 • 网页深度解密",
                             fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -359,7 +386,7 @@ fun DownloaderPanel(
                     OutlinedTextField(
                         value = urlInput,
                         onValueChange = { viewModel.setUrlInput(it) },
-                        placeholder = { Text("粘贴抖音分享文案、短连接或标准链接", fontSize = 13.sp) },
+                        placeholder = { Text("粘贴抖音分享文案、短链接或视频链接", fontSize = 13.sp) },
                         modifier = Modifier
                             .fillMaxWidth()
                             .testTag("url_text_input"),
@@ -370,6 +397,12 @@ fun DownloaderPanel(
                                 }
                             }
                         },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = DouyinRed,
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
+                            cursorColor = DouyinRed,
+                            focusedLabelColor = DouyinRed
+                        ),
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                         keyboardActions = KeyboardActions(onSearch = {
                             focusManager.clearFocus()
@@ -392,7 +425,7 @@ fun DownloaderPanel(
                                         val text = clip.getItemAt(0).text?.toString() ?: ""
                                         if (text.isNotEmpty()) {
                                             viewModel.setUrlInput(text)
-                                            Toast.makeText(context, "已粘贴", Toast.LENGTH_SHORT).show()
+                                            Toast.makeText(context, "已粘贴剪贴板内容", Toast.LENGTH_SHORT).show()
                                         }
                                     } else {
                                         Toast.makeText(context, "剪贴板中没有内容", Toast.LENGTH_SHORT).show()
@@ -401,7 +434,8 @@ fun DownloaderPanel(
                                     Toast.makeText(context, "读取剪贴板受阻：${e.message}", Toast.LENGTH_SHORT).show()
                                 }
                             },
-                            modifier = Modifier.weight(1f)
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(12.dp)
                         ) {
                             Icon(Icons.Default.ContentPaste, contentDescription = "粘贴")
                             Spacer(modifier = Modifier.width(4.dp))
@@ -414,10 +448,14 @@ fun DownloaderPanel(
                                 focusManager.clearFocus()
                                 viewModel.triggerParse(urlInput)
                             },
-                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary, contentColor = MaterialTheme.colorScheme.onPrimary),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = DouyinRed,
+                                contentColor = Color.White
+                            ),
                             modifier = Modifier
                                 .weight(1f)
-                                .testTag("parse_confirm_button")
+                                .testTag("parse_confirm_button"),
+                            shape = RoundedCornerShape(12.dp)
                         ) {
                             Icon(Icons.Default.QueryStats, contentDescription = "智能解析")
                             Spacer(modifier = Modifier.width(4.dp))
@@ -445,7 +483,7 @@ fun DownloaderPanel(
                                 .height(120.dp),
                             contentAlignment = Alignment.Center
                         ) {
-                            Text("等待输入或检测...", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
+                            Text("等待输入或输入链接进行解析...", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
                         }
                     }
                     is ParseState.Parsing -> {
@@ -469,9 +507,9 @@ fun DownloaderPanel(
                                 horizontalArrangement = Arrangement.Center,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                CircularProgressIndicator(color = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
+                                CircularProgressIndicator(color = DouyinRed, modifier = Modifier.size(24.dp))
                                 Spacer(modifier = Modifier.width(16.dp))
-                                Text("正在极速解析抖音视频...")
+                                Text("正在调用极速核心解密提取...")
                             }
                         }
                     }
@@ -532,12 +570,32 @@ fun ParsedVideoInfoCard(
         )
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                text = "解析结果",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "解析结果",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = DouyinCyan
+                )
+                
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(DouyinCyan.copy(alpha = 0.12f))
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                ) {
+                    Text(
+                        text = "无水印高清源已就绪",
+                        fontSize = 11.sp,
+                        color = DouyinCyan,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
             Spacer(modifier = Modifier.height(12.dp))
 
             Row(
@@ -565,17 +623,17 @@ fun ParsedVideoInfoCard(
                 ) {
                     Text(
                         text = parsedInfo.title,
-                        maxLines = 3,
+                        maxLines = 4,
                         overflow = TextOverflow.Ellipsis,
-                        fontWeight = FontWeight.Medium,
-                        fontSize = 14.sp
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp,
+                        lineHeight = 20.sp
                     )
 
                     Text(
-                        text = "无水印高清源已就绪",
+                        text = "分段大小: 自动分块传输 • 多线程就绪",
                         fontSize = 11.sp,
-                        color = Color(0xFF81C784),
-                        fontWeight = FontWeight.SemiBold
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
@@ -584,7 +642,8 @@ fun ParsedVideoInfoCard(
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 Button(
                     onClick = { viewModel.setPreviewVideo(parsedInfo.videoUrl, parsedInfo.title) },
@@ -592,7 +651,8 @@ fun ParsedVideoInfoCard(
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.7f),
                         contentColor = MaterialTheme.colorScheme.onSecondaryContainer
-                    )
+                    ),
+                    shape = RoundedCornerShape(12.dp)
                 ) {
                     Icon(Icons.Default.PlayArrow, contentDescription = "预览")
                     Spacer(modifier = Modifier.width(4.dp))
@@ -603,15 +663,29 @@ fun ParsedVideoInfoCard(
                     onClick = { viewModel.startNewDownload(parsedInfo) },
                     modifier = Modifier
                         .weight(1f)
+                        .height(40.dp)
                         .testTag("start_download_button"),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        contentColor = MaterialTheme.colorScheme.onPrimary
-                    )
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
+                    contentPadding = PaddingValues(),
+                    shape = RoundedCornerShape(12.dp)
                 ) {
-                    Icon(Icons.Default.Download, contentDescription = "下载")
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("高速下载")
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(
+                                Brush.horizontalGradient(
+                                    colors = listOf(DouyinRed, Color(0xFFFF5278))
+                                ),
+                                shape = RoundedCornerShape(12.dp)
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Download, contentDescription = "下载", tint = Color.White)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("高速下载", color = Color.White, fontWeight = FontWeight.Bold)
+                        }
+                    }
                 }
             }
         }
@@ -647,13 +721,13 @@ fun HistoryRecordsPanel(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 8.dp),
-                placeholder = { Text("搜索本地视频标题", color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)) },
-                leadingIcon = { Icon(Icons.Default.Search, contentDescription = "搜索", tint = MaterialTheme.colorScheme.primary) },
+                placeholder = { Text("搜索本地视频标题...", color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)) },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = "搜索", tint = DouyinCyan) },
                 shape = RoundedCornerShape(16.dp),
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedContainerColor = MaterialTheme.colorScheme.surface,
                     unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                    focusedBorderColor = DouyinCyan,
                     unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.35f)
                 ),
                 trailingIcon = {
@@ -674,20 +748,92 @@ fun HistoryRecordsPanel(
                 contentAlignment = Alignment.Center
             ) {
                 Column(
+                    modifier = Modifier
+                        .fillMaxWidth(0.9f)
+                        .padding(24.dp)
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(MaterialTheme.colorScheme.surface)
+                        .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(20.dp))
+                        .padding(24.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                     Icon(
                         Icons.Default.History,
                         contentDescription = "暂无记录",
                         tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f),
-                        modifier = Modifier.size(64.dp)
+                        modifier = Modifier.size(56.dp)
                     )
                     Text(
                         text = if (searchQuery.isNotEmpty()) "未找到匹配的本地视频记录" else "暂无下载记录",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 15.sp
                     )
+                    
+                    if (searchQuery.trim().isEmpty()) {
+                        Divider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
+                        Text(
+                            text = "💡 简单三步，开启无水印下载：",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = DouyinCyan,
+                            modifier = Modifier.align(Alignment.Start)
+                        )
+                        Column(
+                            verticalArrangement = Arrangement.spacedBy(10.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(20.dp)
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(DouyinRed),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(text = "1", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                }
+                                Text(text = "在抖音中点击分享，选择 “复制链接”", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(20.dp)
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(DouyinRed),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(text = "2", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                }
+                                Text(text = "打开本软件，系统检测到会提示立即解析", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(20.dp)
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(DouyinRed),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(text = "3", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                }
+                                Text(text = "解析就绪后，点击 “高速下载” 即可", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                    }
                 }
             }
         } else {
@@ -704,7 +850,7 @@ fun HistoryRecordsPanel(
                             .fillMaxWidth()
                             .border(
                                 1.dp,
-                                if (selectedItemIds.contains(item.id)) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.25f),
+                                if (selectedItemIds.contains(item.id)) DouyinRed else MaterialTheme.colorScheme.outline.copy(alpha = 0.25f),
                                 RoundedCornerShape(16.dp)
                             )
                             .combinedClickable(
@@ -731,7 +877,7 @@ fun HistoryRecordsPanel(
                         shape = RoundedCornerShape(16.dp),
                         colors = CardDefaults.cardColors(
                             containerColor = if (selectedItemIds.contains(item.id)) {
-                                MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+                                DouyinRed.copy(alpha = 0.15f)
                             } else {
                                 MaterialTheme.colorScheme.surface
                             }
@@ -748,7 +894,7 @@ fun HistoryRecordsPanel(
                                 Checkbox(
                                     checked = selectedItemIds.contains(item.id),
                                     onCheckedChange = { viewModel.toggleItemSelection(item.id) },
-                                    colors = CheckboxDefaults.colors(checkedColor = MaterialTheme.colorScheme.primary)
+                                    colors = CheckboxDefaults.colors(checkedColor = DouyinRed)
                                 )
                             }
 
@@ -782,7 +928,7 @@ fun HistoryRecordsPanel(
                                             .background(Color.Black.copy(alpha = 0.4f)),
                                         contentAlignment = Alignment.Center
                                     ) {
-                                        CircularProgressIndicator(color = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+                                        CircularProgressIndicator(color = DouyinRed, modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
                                     }
                                 }
                             }
@@ -792,7 +938,7 @@ fun HistoryRecordsPanel(
                                     text = item.title,
                                     maxLines = 2,
                                     overflow = TextOverflow.Ellipsis,
-                                    fontWeight = FontWeight.Medium,
+                                    fontWeight = FontWeight.Bold,
                                     fontSize = 13.sp,
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
@@ -825,21 +971,21 @@ fun HistoryRecordsPanel(
                                             TextButton(
                                                 onClick = { viewModel.exportToGallery(context, item) },
                                                 contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp),
-                                                colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.primary)
+                                                colors = ButtonDefaults.textButtonColors(contentColor = DouyinCyan)
                                             ) {
                                                 Icon(Icons.Default.Collections, contentDescription = "存相册", modifier = Modifier.size(14.dp))
                                                 Spacer(modifier = Modifier.width(2.dp))
-                                                Text("导相册", fontSize = 11.sp)
+                                                Text("导相册", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                                             }
 
                                             TextButton(
                                                 onClick = { viewModel.shareVideo(context, item) },
                                                 contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp),
-                                                colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.primary)
+                                                colors = ButtonDefaults.textButtonColors(contentColor = DouyinCyan)
                                             ) {
                                                 Icon(Icons.Default.Share, contentDescription = "分享", modifier = Modifier.size(14.dp))
                                                 Spacer(modifier = Modifier.width(2.dp))
-                                                Text("分享", fontSize = 11.sp)
+                                                Text("分享", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                                             }
 
                                             Spacer(modifier = Modifier.weight(1f))
@@ -857,7 +1003,7 @@ fun HistoryRecordsPanel(
                                         val downloadingStr = if (item.status == "DOWNLOADING") "下载中" else if (item.status == "PAUSED") "已暂停" else if (item.status == "ERROR") "故障 (点击重试)" else "等待中..."
 
                                         Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Text("$downloadingStr $percent%", fontSize = 11.sp, color = if (item.status == "ERROR") MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                                            Text("$downloadingStr $percent%", fontSize = 11.sp, color = if (item.status == "ERROR") MaterialTheme.colorScheme.error else DouyinCyan, fontWeight = FontWeight.Bold)
                                             Spacer(modifier = Modifier.weight(1f))
                                             Text("${formatBytes(item.downloadedBytes)} / ${formatBytes(item.totalBytes)}", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
                                         }
@@ -870,7 +1016,7 @@ fun HistoryRecordsPanel(
                                                 .fillMaxWidth()
                                                 .height(6.dp)
                                                 .clip(RoundedCornerShape(3.dp)),
-                                            color = if (item.status == "PAUSED" || item.status == "ERROR") Color.Gray else MaterialTheme.colorScheme.primary,
+                                            color = if (item.status == "PAUSED" || item.status == "ERROR") Color.Gray else DouyinCyan,
                                             trackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)
                                         )
 
@@ -889,7 +1035,7 @@ fun HistoryRecordsPanel(
                                                 Icon(
                                                     imageVector = if (item.status == "DOWNLOADING") Icons.Default.PauseCircleFilled else Icons.Default.PlayCircleFilled,
                                                     contentDescription = "暂停/开始",
-                                                    tint = MaterialTheme.colorScheme.primary
+                                                    tint = DouyinCyan
                                                 )
                                             }
 
@@ -930,6 +1076,13 @@ fun VideoPreviewOverlay(
         modifier = modifier
             .fillMaxWidth()
             .height(300.dp)
+            .border(
+                1.5.dp,
+                Brush.linearGradient(
+                    colors = listOf(DouyinRed, DouyinCyan)
+                ),
+                RoundedCornerShape(20.dp)
+            )
             .testTag("video_preview_overlay"),
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = Color.Black),
@@ -944,7 +1097,7 @@ fun VideoPreviewOverlay(
                     .padding(horizontal = 14.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(Icons.Default.SlowMotionVideo, contentDescription = "播放中", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
+                Icon(Icons.Default.SlowMotionVideo, contentDescription = "播放中", tint = DouyinRed, modifier = Modifier.size(16.dp))
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
                     text = title,
@@ -981,7 +1134,7 @@ fun VideoPlayer(videoUrl: String, modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val lastUrl = remember { mutableStateOf("") }
     val userAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1"
-
+    
     AndroidView(
         modifier = modifier,
         factory = { ctx ->
