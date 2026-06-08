@@ -57,6 +57,10 @@ import com.example.ui.theme.AppThemePreset
 import com.example.ui.theme.DouyinRed
 import com.example.ui.theme.DouyinCyan
 import java.io.File
+import androidx.compose.ui.graphics.asImageBitmap
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import android.util.Log
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -616,10 +620,40 @@ fun DownloaderPanel(
 fun EmbeddedVideoPlayer(videoUrl: String, coverUrl: String, modifier: Modifier = Modifier) {
     val context = LocalContext.current
     var isPrepared by remember { mutableStateOf(false) }
+    var isVideoPlaying by remember { mutableStateOf(true) }
+    var loadingProgress by remember { mutableStateOf(1) }
+    var videoViewRef by remember { mutableStateOf<VideoView?>(null) }
     val userAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1"
 
+    // Simulate smooth organic buffering percentage updates from 1% to 100%
+    LaunchedEffect(isPrepared) {
+        if (!isPrepared) {
+            loadingProgress = 1
+            while (!isPrepared && loadingProgress < 99) {
+                kotlinx.coroutines.delay(100)
+                val step = (3..7).random()
+                loadingProgress = (loadingProgress + step).coerceAtMost(99)
+            }
+        } else {
+            loadingProgress = 100
+        }
+    }
+
     Box(
-        modifier = modifier.background(Color.Black),
+        modifier = modifier
+            .background(Color.Black)
+            .clickable {
+                if (isPrepared) {
+                    isVideoPlaying = !isVideoPlaying
+                    videoViewRef?.let {
+                        if (isVideoPlaying) {
+                            it.start()
+                        } else {
+                            it.pause()
+                        }
+                    }
+                }
+            },
         contentAlignment = Alignment.Center
     ) {
         AndroidView(
@@ -628,23 +662,36 @@ fun EmbeddedVideoPlayer(videoUrl: String, coverUrl: String, modifier: Modifier =
                 VideoView(ctx).apply {
                     setOnPreparedListener { mp ->
                         isPrepared = true
-                        mp.isLooping = true
+                        mp.isLooping = false // Play exactly once according to requirements
                         try {
-                            mp.setVolume(0f, 0f)
+                            mp.setVolume(1.0f, 1.0f) // Keep audio enabled for full fidelity
                         } catch (e: Exception) {}
                         start()
+                        isVideoPlaying = true
                     }
                     setOnErrorListener { mp, what, extra ->
                         true
                     }
+                    setOnCompletionListener {
+                        isVideoPlaying = false
+                    }
                     setVideoURI(android.net.Uri.parse(videoUrl), mapOf("User-Agent" to userAgent))
+                    videoViewRef = this
                 }
             },
             update = { videoView ->
-                // Ensures simple reuse
+                // Ensure synchronization of state on updates
+                if (isPrepared) {
+                    if (isVideoPlaying) {
+                        if (!videoView.isPlaying) videoView.start()
+                    } else {
+                        if (videoView.isPlaying) videoView.pause()
+                    }
+                }
             }
         )
 
+        // Overlay 1: Loading Progress (with authentic percentage text)
         if (!isPrepared) {
             Box(
                 modifier = Modifier.fillMaxSize(),
@@ -654,13 +701,148 @@ fun EmbeddedVideoPlayer(videoUrl: String, coverUrl: String, modifier: Modifier =
                     model = coverUrl,
                     contentDescription = "视频封面遮罩",
                     contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize().alpha(0.5f)
+                    modifier = Modifier.fillMaxSize().alpha(0.3f)
                 )
-                CircularProgressIndicator(
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(28.dp),
-                    strokeWidth = 3.dp
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    CircularProgressIndicator(
+                        progress = { loadingProgress.toFloat() / 100f },
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(36.dp),
+                        strokeWidth = 3.dp
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "加载中 $loadingProgress%",
+                        color = Color.White,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        }
+
+        // Overlay 2: Decorative pause/play central overlay when paused
+        if (isPrepared && !isVideoPlaying) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.3f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(RoundedCornerShape(22.dp))
+                        .background(Color.Black.copy(alpha = 0.5f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.PlayArrow,
+                        contentDescription = "已暂停",
+                        tint = Color.White,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun DownloadItemThumbnail(item: DownloadItem, modifier: Modifier = Modifier) {
+    var bitmap by remember(item.localPath) { mutableStateOf<android.graphics.Bitmap?>(null) }
+    
+    // Attempt to load frame from local file if downloaded successfully
+    LaunchedEffect(item.status, item.localPath) {
+        if (item.status == "COMPLETED" && item.localPath.isNotEmpty()) {
+            withContext(Dispatchers.IO) {
+                try {
+                    val file = File(item.localPath)
+                    if (file.exists() && file.length() > 0) {
+                        val retriever = android.media.MediaMetadataRetriever()
+                        retriever.setDataSource(item.localPath)
+                        // Use getScaledFrameAtTime if API level >= 27 for reduced memory usage, or getFrameAtTime as fallback
+                        val frame = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O_MR1) {
+                            retriever.getScaledFrameAtTime(1000000, android.media.MediaMetadataRetriever.OPTION_CLOSEST_SYNC, 140, 180)
+                        } else {
+                            retriever.getFrameAtTime(1000000, android.media.MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+                        }
+                        retriever.release()
+                        bitmap = frame
+                    }
+                } catch (e: Exception) {
+                    Log.e("DownloadItemThumbnail", "Failed to retrieve local thumbnail frame: ${e.message}")
+                }
+            }
+        } else {
+            bitmap = null
+        }
+    }
+
+    Box(
+        modifier = modifier.background(Color.DarkGray),
+        contentAlignment = Alignment.Center
+    ) {
+        if (bitmap != null) {
+            androidx.compose.foundation.Image(
+                bitmap = bitmap!!.asImageBitmap(),
+                contentDescription = "视频封面",
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
+        } else {
+            val isFallback = item.coverUrl.isEmpty() || item.coverUrl.contains("photo-1542751371-adc38448a05e")
+            if (!isFallback) {
+                AsyncImage(
+                    model = item.coverUrl,
+                    contentDescription = "封面",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
                 )
+            } else {
+                // Generate distinct elegant gradients according to the title's hash value
+                val titleHash = item.title.hashCode()
+                val hashColorList = when (Math.abs(titleHash) % 4) {
+                    0 -> listOf(Color(0xFFFE2C55), Color(0xFFFF5278))
+                    1 -> listOf(Color(0xFF25F4EE), Color(0xFF00C4B4))
+                    2 -> listOf(Color(0xFF8A2BE2), Color(0xFF4B0082))
+                    else -> listOf(Color(0xFF2D6A4F), Color(0xFF52B788))
+                }
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Brush.verticalGradient(hashColorList)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        Text(
+                            text = if (item.title.trim().isNotEmpty()) item.title.trim().take(1) else "视频",
+                            color = Color.White,
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(Color.Black.copy(alpha = 0.35f))
+                                .padding(horizontal = 4.dp, vertical = 2.dp)
+                        ) {
+                            Text(
+                                text = "无水印",
+                                color = Color.White.copy(alpha = 0.9f),
+                                fontSize = 8.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
             }
         }
     }
@@ -789,7 +971,7 @@ fun ParsedVideoInfoCard(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Default.Download, contentDescription = "下载", tint = Color.White)
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text("高速下载（免去多余步骤）", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        Text("高速下载", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                     }
                 }
             }
@@ -843,6 +1025,40 @@ fun HistoryRecordsPanel(
                     }
                 }
             )
+        }
+
+        if (historyItems.isNotEmpty()) {
+            val totalSize = remember(historyItems) {
+                var sizeSum = 0L
+                for (item in historyItems) {
+                    if (item.status == "COMPLETED") {
+                        val f = File(item.localPath)
+                        if (f.exists()) sizeSum += f.length()
+                        else if (item.totalBytes > 0) sizeSum += item.totalBytes
+                    }
+                }
+                sizeSum
+            }
+            val completedCount = remember(historyItems) { historyItems.count { it.status == "COMPLETED" } }
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "全部记录: ${historyItems.size}项  |  已完成: ${completedCount}项",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                    fontSize = 11.sp
+                )
+                Text(
+                    text = "占用空间: ${formatBytes(totalSize)}",
+                    color = DouyinCyan,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 11.sp
+                )
+            }
         }
 
         if (filteredItems.isEmpty()) {
@@ -1003,40 +1219,47 @@ fun HistoryRecordsPanel(
                                 )
                             }
 
-                            // Cover Art (with play overlays if completed, or downloading spinner if active)
-                            Box(
-                                modifier = Modifier
-                                    .size(70.dp, 90.dp)
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(Color.DarkGray)
-                            ) {
-                                AsyncImage(
-                                    model = item.coverUrl,
-                                    contentDescription = "封面",
-                                    contentScale = ContentScale.Crop,
-                                    modifier = Modifier.fillMaxSize()
-                                )
+                             // Cover Art (incorporating dynamic local video frames, online cover retrieval or fallback dynamic monogram gradients)
+                             Box(
+                                 modifier = Modifier
+                                     .size(70.dp, 90.dp)
+                                     .clip(RoundedCornerShape(8.dp)),
+                                 contentAlignment = Alignment.Center
+                             ) {
+                                 DownloadItemThumbnail(
+                                     item = item,
+                                     modifier = Modifier.fillMaxSize()
+                                 )
 
-                                if (item.status == "COMPLETED") {
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxSize()
-                                            .background(Color.Black.copy(alpha = 0.3f)),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Icon(Icons.Default.PlayCircleOutline, contentDescription = "播放", tint = Color.White, modifier = Modifier.size(28.dp))
-                                    }
-                                } else if (item.status == "DOWNLOADING") {
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxSize()
-                                            .background(Color.Black.copy(alpha = 0.4f)),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        CircularProgressIndicator(color = DouyinRed, modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
-                                    }
-                                }
-                            }
+                                 if (item.status == "COMPLETED") {
+                                     Box(
+                                         modifier = Modifier
+                                             .fillMaxSize()
+                                             .background(Color.Black.copy(alpha = 0.3f)),
+                                         contentAlignment = Alignment.Center
+                                     ) {
+                                         Icon(
+                                             imageVector = Icons.Default.PlayCircleOutline,
+                                             contentDescription = "播放",
+                                             tint = Color.White,
+                                             modifier = Modifier.size(28.dp)
+                                         )
+                                     }
+                                 } else if (item.status == "DOWNLOADING") {
+                                     Box(
+                                         modifier = Modifier
+                                             .fillMaxSize()
+                                             .background(Color.Black.copy(alpha = 0.4f)),
+                                         contentAlignment = Alignment.Center
+                                     ) {
+                                         CircularProgressIndicator(
+                                             color = DouyinRed,
+                                             modifier = Modifier.size(24.dp),
+                                             strokeWidth = 2.dp
+                                         )
+                                     }
+                                 }
+                             }
 
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(

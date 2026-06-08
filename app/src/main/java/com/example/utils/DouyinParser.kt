@@ -218,6 +218,34 @@ object DouyinParser {
     }
 
     private fun findCoverUrl(html: String): String {
+        // 1st Priority: Look for og:image meta tags (very standard for Douyin social sharing pages)
+        try {
+            val ogImagePattern = Pattern.compile("<meta\\s+property=\"og:image\"\\s+content=\"([^\"]+)\"")
+            val ogImageMatcher = ogImagePattern.matcher(html)
+            if (ogImageMatcher.find()) {
+                val candidate = ogImageMatcher.group(1)?.replace("\\u002F", "/")?.replace("&amp;", "&") ?: ""
+                if (candidate.isNotEmpty() && candidate.startsWith("http")) {
+                    return candidate
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error matching og:image", e)
+        }
+
+        // 2nd Priority: Look for cover/dynamic_cover fields inside nested JSON blocs
+        try {
+            val coverJsonPattern = Pattern.compile("\"cover\"\\s*:\\s*\"([^\"]+)\"")
+            val coverJsonMatcher = coverJsonPattern.matcher(html)
+            if (coverJsonMatcher.find()) {
+                val candidate = coverJsonMatcher.group(1)?.replace("\\/", "/")?.replace("\\u002F", "/") ?: ""
+                if (candidate.isNotEmpty() && candidate.startsWith("http") && !candidate.contains("avatar")) {
+                    return candidate
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error matching JSON cover", e)
+        }
+
         // Look for douyin media poster cover url patterns (excluding avatars)
         val pattern = Pattern.compile("https?://[^\"\\s]+douyinpic\\.com/aweme/[^\"\\s]+")
         val matcher = pattern.matcher(html)
