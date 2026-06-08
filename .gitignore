@@ -16,3 +16,12 @@
 local.properties
 .env
 debug.keystore
+
+# Build outputs
+*.apk
+*.aab
+/build
+/*/build
+.build-outputs/
+output.json
+
