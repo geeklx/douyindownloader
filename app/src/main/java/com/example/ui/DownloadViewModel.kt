@@ -27,6 +27,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import com.example.ui.theme.AppThemePreset
 
 sealed interface ParseState {
     object Idle : ParseState
@@ -60,6 +61,11 @@ class DownloadViewModel(application: Application) : AndroidViewModel(application
     private val _previewTitle = MutableStateFlow<String?>(null)
     val previewTitle = _previewTitle.asStateFlow()
 
+    // Theme selection preset and local cache persistence
+    private val _currentThemePreset = MutableStateFlow(AppThemePreset.DOUYIN_DARK)
+    val currentThemePreset = _currentThemePreset.asStateFlow()
+    private val prefs = application.getSharedPreferences("app_settings_prefs", Context.MODE_PRIVATE)
+
     // Bulk selection modes
     private val _selectedItemIds = MutableStateFlow<Set<Long>>(emptySet())
     val selectedItemIds = _selectedItemIds.asStateFlow()
@@ -71,6 +77,10 @@ class DownloadViewModel(application: Application) : AndroidViewModel(application
     private var lastCheckedClipboardUrl: String? = null
 
     init {
+        // Load saved theme preset
+        val savedThemeIdx = prefs.getInt("selected_theme_preset_idx", 0)
+        _currentThemePreset.value = AppThemePreset.values().getOrElse(savedThemeIdx) { AppThemePreset.DOUYIN_DARK }
+
         val database = DownloadDatabase.getDatabase(application)
         repository = DownloadRepository(database.downloadDao())
         historyItems = repository.allItems.stateIn(
@@ -149,8 +159,6 @@ class DownloadViewModel(application: Application) : AndroidViewModel(application
                 val parsed = DouyinParser.parseUrl(url)
                 if (parsed != null) {
                     _parseState.value = ParseState.Parsed(parsed)
-                    // Auto feed the link to preview as well!
-                    setPreviewVideo(parsed.videoUrl, parsed.title)
                 } else {
                     _parseState.value = ParseState.Error("解析失败，未提取到有效无水印视频。您也可以先手动添加并尝试下载。")
                 }
@@ -370,6 +378,11 @@ class DownloadViewModel(application: Application) : AndroidViewModel(application
                 shareText(context, item.title, item.url)
             }
         }
+    }
+
+    fun selectThemePreset(preset: AppThemePreset) {
+        _currentThemePreset.value = preset
+        prefs.edit().putInt("selected_theme_preset_idx", preset.ordinal).apply()
     }
 
     private fun shareText(context: Context, title: String, content: String) {

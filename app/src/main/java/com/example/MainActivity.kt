@@ -29,6 +29,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -52,6 +53,7 @@ import com.example.data.DownloadItem
 import com.example.ui.DownloadViewModel
 import com.example.ui.ParseState
 import com.example.ui.theme.MyApplicationTheme
+import com.example.ui.theme.AppThemePreset
 import com.example.ui.theme.DouyinRed
 import com.example.ui.theme.DouyinCyan
 import java.io.File
@@ -61,8 +63,10 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            MyApplicationTheme {
-                MainAppScreen()
+            val viewModel: DownloadViewModel = viewModel()
+            val currentTheme by viewModel.currentThemePreset.collectAsState()
+            MyApplicationTheme(preset = currentTheme) {
+                MainAppScreen(viewModel)
             }
         }
     }
@@ -70,10 +74,10 @@ class MainActivity : ComponentActivity() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MainAppScreen() {
+fun MainAppScreen(viewModel: DownloadViewModel) {
     val context = LocalContext.current
     val focusManager = LocalFocusManager.current
-    val viewModel: DownloadViewModel = viewModel()
+    val currentTheme by viewModel.currentThemePreset.collectAsState()
 
     // Screen State variables
     var currentTab by remember { mutableStateOf(0) } // 0 = Downloader, 1 = Downloads Records
@@ -146,6 +150,64 @@ fun MainAppScreen() {
                     }
                 },
                 actions = {
+                    var showThemeMenu by remember { mutableStateOf(false) }
+                    Box(modifier = Modifier.padding(end = 4.dp)) {
+                        IconButton(onClick = { showThemeMenu = true }) {
+                            Icon(
+                                imageVector = Icons.Default.Palette,
+                                contentDescription = "切换主题",
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                        DropdownMenu(
+                            expanded = showThemeMenu,
+                            onDismissRequest = { showThemeMenu = false }
+                        ) {
+                            AppThemePreset.values().forEach { preset ->
+                                DropdownMenuItem(
+                                    text = {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(12.dp)
+                                                    .clip(RoundedCornerShape(6.dp))
+                                                    .background(
+                                                        when (preset) {
+                                                            AppThemePreset.DOUYIN_DARK -> Color(0xFFFE2C55)
+                                                            AppThemePreset.CLASSIC_LIGHT -> Color(0xFFFE2C55)
+                                                            AppThemePreset.CYBERPUNK -> Color(0xFFFF007F)
+                                                            AppThemePreset.FOREST_ZEN -> Color(0xFF2D6A4F)
+                                                        }
+                                                    )
+                                            )
+                                            Text(
+                                                text = preset.displayName,
+                                                fontWeight = if (currentTheme == preset) FontWeight.Bold else FontWeight.Normal,
+                                                color = if (currentTheme == preset) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                                            )
+                                            if (currentTheme == preset) {
+                                                Spacer(modifier = Modifier.width(4.dp))
+                                                Icon(
+                                                    imageVector = Icons.Default.Check,
+                                                    contentDescription = "已选择",
+                                                    modifier = Modifier.size(16.dp),
+                                                    tint = MaterialTheme.colorScheme.primary
+                                                )
+                                            }
+                                        }
+                                    },
+                                    onClick = {
+                                        viewModel.selectThemePreset(preset)
+                                        showThemeMenu = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+
                     if (currentTab == 1) {
                         if (isSelectionMode) {
                             IconButton(onClick = { viewModel.selectAll() }) {
@@ -551,22 +613,83 @@ fun DownloaderPanel(
 }
 
 @Composable
+fun EmbeddedVideoPlayer(videoUrl: String, coverUrl: String, modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    var isPrepared by remember { mutableStateOf(false) }
+    val userAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1"
+
+    Box(
+        modifier = modifier.background(Color.Black),
+        contentAlignment = Alignment.Center
+    ) {
+        AndroidView(
+            modifier = Modifier.fillMaxSize(),
+            factory = { ctx ->
+                VideoView(ctx).apply {
+                    setOnPreparedListener { mp ->
+                        isPrepared = true
+                        mp.isLooping = true
+                        try {
+                            mp.setVolume(0f, 0f)
+                        } catch (e: Exception) {}
+                        start()
+                    }
+                    setOnErrorListener { mp, what, extra ->
+                        true
+                    }
+                    setVideoURI(android.net.Uri.parse(videoUrl), mapOf("User-Agent" to userAgent))
+                }
+            },
+            update = { videoView ->
+                // Ensures simple reuse
+            }
+        )
+
+        if (!isPrepared) {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                AsyncImage(
+                    model = coverUrl,
+                    contentDescription = "视频封面遮罩",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize().alpha(0.5f)
+                )
+                CircularProgressIndicator(
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(28.dp),
+                    strokeWidth = 3.dp
+                )
+            }
+        }
+    }
+}
+
+@Composable
 fun ParsedVideoInfoCard(
     parsedInfo: ParsedVideoInfo,
     viewModel: DownloadViewModel
 ) {
+    val primaryColor = MaterialTheme.colorScheme.primary
+    val secondaryColor = MaterialTheme.colorScheme.secondary
+    val surfaceColor = MaterialTheme.colorScheme.surface
+    val outlineColor = MaterialTheme.colorScheme.outline
+    val onSurfaceColor = MaterialTheme.colorScheme.onSurface
+    val onSurfaceVariantColor = MaterialTheme.colorScheme.onSurfaceVariant
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .border(
                 1.dp,
-                MaterialTheme.colorScheme.outline.copy(alpha = 0.35f),
+                Brush.horizontalGradient(listOf(primaryColor, secondaryColor)),
                 RoundedCornerShape(20.dp)
             )
             .testTag("parsed_info_card"),
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
+            containerColor = surfaceColor
         )
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -579,19 +702,19 @@ fun ParsedVideoInfoCard(
                     text = "解析结果",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
-                    color = DouyinCyan
+                    color = primaryColor
                 )
                 
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(6.dp))
-                        .background(DouyinCyan.copy(alpha = 0.12f))
+                        .background(secondaryColor.copy(alpha = 0.12f))
                         .padding(horizontal = 8.dp, vertical = 4.dp)
                 ) {
                     Text(
                         text = "无水印高清源已就绪",
                         fontSize = 11.sp,
-                        color = DouyinCyan,
+                        color = secondaryColor,
                         fontWeight = FontWeight.Bold
                     )
                 }
@@ -602,17 +725,18 @@ fun ParsedVideoInfoCard(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                // Async image cover
+                // Video Player inline replacing the cover static image
                 Box(
                     modifier = Modifier
-                        .size(90.dp, 120.dp)
+                        .size(110.dp, 150.dp)
                         .clip(RoundedCornerShape(12.dp))
-                        .background(Color.Gray)
+                        .background(Color.Black)
+                        .border(1.dp, outlineColor.copy(alpha = 0.5f), RoundedCornerShape(12.dp)),
+                    contentAlignment = Alignment.Center
                 ) {
-                    AsyncImage(
-                        model = parsedInfo.coverUrl,
-                        contentDescription = "视频封面",
-                        contentScale = ContentScale.Crop,
+                    EmbeddedVideoPlayer(
+                        videoUrl = parsedInfo.videoUrl,
+                        coverUrl = parsedInfo.coverUrl,
                         modifier = Modifier.fillMaxSize()
                     )
                 }
@@ -627,64 +751,45 @@ fun ParsedVideoInfoCard(
                         overflow = TextOverflow.Ellipsis,
                         fontWeight = FontWeight.Bold,
                         fontSize = 14.sp,
-                        lineHeight = 20.sp
+                        lineHeight = 20.sp,
+                        color = onSurfaceColor
                     )
 
                     Text(
                         text = "分段大小: 自动分块传输 • 多线程就绪",
                         fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = onSurfaceVariantColor
                     )
                 }
             }
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalAlignment = Alignment.CenterVertically
+            Button(
+                onClick = { viewModel.startNewDownload(parsedInfo) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(44.dp)
+                    .testTag("start_download_button"),
+                colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
+                contentPadding = PaddingValues(),
+                shape = RoundedCornerShape(12.dp)
             ) {
-                Button(
-                    onClick = { viewModel.setPreviewVideo(parsedInfo.videoUrl, parsedInfo.title) },
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.7f),
-                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer
-                    ),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Icon(Icons.Default.PlayArrow, contentDescription = "预览")
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("边看边下")
-                }
-
-                Button(
-                    onClick = { viewModel.startNewDownload(parsedInfo) },
+                Box(
                     modifier = Modifier
-                        .weight(1f)
-                        .height(40.dp)
-                        .testTag("start_download_button"),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
-                    contentPadding = PaddingValues(),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(
-                                Brush.horizontalGradient(
-                                    colors = listOf(DouyinRed, Color(0xFFFF5278))
-                                ),
-                                shape = RoundedCornerShape(12.dp)
+                        .fillMaxSize()
+                        .background(
+                            Brush.horizontalGradient(
+                                colors = listOf(primaryColor, primaryColor.copy(alpha = 0.8f))
                             ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.Download, contentDescription = "下载", tint = Color.White)
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("高速下载", color = Color.White, fontWeight = FontWeight.Bold)
-                        }
+                            shape = RoundedCornerShape(12.dp)
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Download, contentDescription = "下载", tint = Color.White)
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("高速下载（免去多余步骤）", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                     }
                 }
             }

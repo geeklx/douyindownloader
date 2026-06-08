@@ -1,6 +1,6 @@
 {
   "name": "抖音去水印下载器",
-  "description": "一款简洁、高效的抖音去水印视频下载与管理工具，支持多线程高速断点续传、预览边看边下、相册导出。",
+  "description": "一款简洁、高效的抖音去水印视频下载与管理工具，支持多线程高速断点续传、多主题切换、解析结果内置显示播放、相册导出。",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
