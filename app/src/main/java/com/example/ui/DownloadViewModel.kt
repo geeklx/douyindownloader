@@ -299,20 +299,26 @@ class DownloadViewModel(application: Application) : AndroidViewModel(application
             return
         }
 
+        // On Android 9 (P) and below, check and request WRITE_EXTERNAL_STORAGE
+        if (android.os.Build.VERSION.SDK_INT <= android.os.Build.VERSION_CODES.P) {
+            val permission = android.Manifest.permission.WRITE_EXTERNAL_STORAGE
+            if (androidx.core.content.ContextCompat.checkSelfPermission(context, permission) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                val activity = context as? android.app.Activity
+                if (activity != null) {
+                    androidx.core.app.ActivityCompat.requestPermissions(activity, arrayOf(permission), 2002)
+                    Toast.makeText(context, "请授予存储权限后重试", Toast.LENGTH_LONG).show()
+                } else {
+                    Toast.makeText(context, "请在系统设置中授予存储权限", Toast.LENGTH_LONG).show()
+                }
+                return
+            }
+        }
+
         viewModelScope.launch {
             try {
                 val exported = withContext(Dispatchers.IO) {
                     val displayName = "Douyin_${item.title.replace("[\\\\/:*?\"<>|]".toRegex(), "_")}_${System.currentTimeMillis()}.mp4"
                     
-                    val contentValues = ContentValues().apply {
-                        put(MediaStore.Video.Media.DISPLAY_NAME, displayName)
-                        put(MediaStore.Video.Media.MIME_TYPE, "video/mp4")
-                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
-                            put(MediaStore.Video.Media.RELATIVE_PATH, Environment.DIRECTORY_MOVIES + "/去水印视频")
-                            put(MediaStore.Video.Media.IS_PENDING, 1)
-                        }
-                    }
-
                     val resolver = context.contentResolver
                     val collection = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
                         MediaStore.Video.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
@@ -320,20 +326,66 @@ class DownloadViewModel(application: Application) : AndroidViewModel(application
                         MediaStore.Video.Media.EXTERNAL_CONTENT_URI
                     }
 
-                    val videoUri = resolver.insert(collection, contentValues)
-                    if (videoUri != null) {
-                        resolver.openOutputStream(videoUri)?.use { outStream ->
-                            file.inputStream().use { inStream ->
-                                inStream.copyTo(outStream)
+                    fun tryInsert(relativePath: String? = null): android.net.Uri? {
+                        val contentValues = ContentValues().apply {
+                            put(MediaStore.Video.Media.DISPLAY_NAME, displayName)
+                            put(MediaStore.Video.Media.MIME_TYPE, "video/mp4")
+                            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                                if (relativePath != null) {
+                                    put(MediaStore.Video.Media.RELATIVE_PATH, relativePath)
+                                }
+                                put(MediaStore.Video.Media.IS_PENDING, 1)
                             }
                         }
-
-                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
-                            contentValues.clear()
-                            contentValues.put(MediaStore.Video.Media.IS_PENDING, 0)
-                            resolver.update(videoUri, contentValues, null, null)
+                        return try {
+                            resolver.insert(collection, contentValues)
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Failed inserting with relativePath: $relativePath", e)
+                            null
                         }
-                        true
+                    }
+
+                    // Cascade fallbacks for extreme ROM compatibility:
+                    // 1. Movies/去水印视频 (Preferred custom folder)
+                    // 2. DCIM/Camera (Most general standard photo/video location)
+                    // 3. Raw insert (let system decide default location)
+                    var videoUri = tryInsert(Environment.DIRECTORY_MOVIES + "/去水印视频")
+                    if (videoUri == null) {
+                        videoUri = tryInsert(Environment.DIRECTORY_DCIM + "/Camera")
+                    }
+                    if (videoUri == null) {
+                        videoUri = tryInsert(null)
+                    }
+
+                    if (videoUri != null) {
+                        try {
+                            resolver.openOutputStream(videoUri)?.use { outStream ->
+                                file.inputStream().use { inStream ->
+                                    inStream.copyTo(outStream)
+                                }
+                            }
+
+                            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                                val finishValues = ContentValues().apply {
+                                    put(MediaStore.Video.Media.IS_PENDING, 0)
+                                }
+                                resolver.update(videoUri, finishValues, null, null)
+                            } else {
+                                // For old Android, broad notification so scanning triggers
+                                val scanIntent = Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE).apply {
+                                    data = videoUri
+                                }
+                                context.sendBroadcast(scanIntent)
+                            }
+                            true
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Failed to write video data", e)
+                            // Clean up unwritten helper database entry
+                            try {
+                                resolver.delete(videoUri, null, null)
+                            } catch (ignored: Exception) {}
+                            false
+                        }
                     } else {
                         false
                     }

@@ -53,6 +53,7 @@ object DouyinParser {
             val request = Request.Builder()
                 .url(url)
                 .header("User-Agent", MOBILE_USER_AGENT)
+                .header("Referer", "https://v.douyin.com/")
                 .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8")
                 .build()
 

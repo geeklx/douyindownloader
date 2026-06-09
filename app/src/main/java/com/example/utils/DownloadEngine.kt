@@ -31,6 +31,8 @@ object DownloadEngine {
     private val client = OkHttpClient.Builder()
         .connectTimeout(30, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
+        .followRedirects(true)
+        .followSslRedirects(true)
         .build()
 
     // Map to keep track of active download jobs
@@ -64,6 +66,7 @@ object DownloadEngine {
                     .url(item.url)
                     .head()
                     .header("User-Agent", USER_AGENT)
+                    .header("Referer", "https://www.douyin.com/")
                     .build()
 
                 var contentLength = -1L
@@ -86,6 +89,7 @@ object DownloadEngine {
                         .url(item.url)
                         .header("Range", "bytes=0-1")
                         .header("User-Agent", USER_AGENT)
+                        .header("Referer", "https://www.douyin.com/")
                         .build()
 
                     client.newCall(getRequest).execute().use { response ->
@@ -106,8 +110,15 @@ object DownloadEngine {
 
                 // Check if server supports multi-threaded range downloads
                 if (acceptRanges && contentLength > 0) {
-                    Log.d(TAG, "Running multi-threaded segmented downloader...")
-                    runMultiThreadedDownload(context, item, contentLength, NUM_THREADS)
+                    try {
+                        Log.d(TAG, "Running multi-threaded segmented downloader...")
+                        runMultiThreadedDownload(context, item, contentLength, NUM_THREADS)
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Multi-threaded download failed: ${e.message}. Falling back to single-threaded download...", e)
+                        runSingleThreadedDownload(context, item, contentLength)
+                    }
                 } else {
                     Log.d(TAG, "Range not supported or file size unknown. Running single-threaded downloader...")
                     runSingleThreadedDownload(context, item, contentLength)
@@ -160,6 +171,7 @@ object DownloadEngine {
         val request = Request.Builder()
             .url(item.url)
             .header("User-Agent", USER_AGENT)
+            .header("Referer", "https://www.douyin.com/")
             .build()
 
         client.newCall(request).execute().use { response ->
@@ -279,6 +291,7 @@ object DownloadEngine {
                     .url(item.url)
                     .header("Range", "bytes=$segmentStart-$segmentEnd")
                     .header("User-Agent", USER_AGENT)
+                    .header("Referer", "https://www.douyin.com/")
                     .build()
 
                 client.newCall(request).execute().use { response ->
