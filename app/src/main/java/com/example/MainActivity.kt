@@ -266,9 +266,15 @@ fun MainAppScreen(viewModel: DownloadViewModel) {
                 .padding(innerPadding)
                 .background(MaterialTheme.colorScheme.background)
         ) {
-            Column(modifier = Modifier.fillMaxSize()) {
-                if (currentTab == 0) {
-                    // TAB 0: DOWNLOAD PANEL
+            Box(modifier = Modifier.fillMaxSize()) {
+                // TAB 0: DOWNLOAD PANEL (Kept in composition to preserve input/scroll state)
+                Box(
+                    modifier = if (currentTab == 0) {
+                        Modifier.fillMaxSize()
+                    } else {
+                        Modifier.size(0.dp)
+                    }
+                ) {
                     DownloaderPanel(
                         viewModel = viewModel,
                         urlInput = urlInput,
@@ -276,8 +282,16 @@ fun MainAppScreen(viewModel: DownloadViewModel) {
                         focusManager = focusManager,
                         clipboardManager = clipboardManager
                     )
-                } else {
-                    // TAB 1: HISTORY PANEL
+                }
+
+                // TAB 1: HISTORY PANEL (Kept in composition to preserve filters/selections/scroll offsets)
+                Box(
+                    modifier = if (currentTab == 1) {
+                        Modifier.fillMaxSize()
+                    } else {
+                        Modifier.size(0.dp)
+                    }
+                ) {
                     HistoryRecordsPanel(
                         viewModel = viewModel,
                         searchQuery = searchQuery,
