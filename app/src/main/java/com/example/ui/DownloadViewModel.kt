@@ -19,6 +19,8 @@ import com.example.utils.DownloadProgressEvent
 import com.example.utils.DouyinParser
 import com.example.utils.ParsedVideoInfo
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -39,11 +41,15 @@ sealed interface ParseState {
 class DownloadViewModel(application: Application) : AndroidViewModel(application) {
     private val TAG = "DownloadViewModel"
 
+    companion object {
+        const val DEFAULT_TEST_URL = "0.07 复制打开抖音，看看【青灯说影的作品】诅咒的延续，被附身的妻子举锅砸死丈夫，凶宅诅咒彻底... https://v.douyin.com/RE9SN6BMW3A/ y@g.OK :3pm 11/09 GiC:/"
+    }
+
     private val repository: DownloadRepository
     val historyItems: StateFlow<List<DownloadItem>>
 
-    // Input States
-    private val _urlInput = MutableStateFlow("")
+    // Input States - Pre-filled with user requested test link
+    private val _urlInput = MutableStateFlow(DEFAULT_TEST_URL)
     val urlInput = _urlInput.asStateFlow()
 
     // Parse status flow
@@ -156,11 +162,11 @@ class DownloadViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch {
             try {
                 Log.d(TAG, "Trigger parsing for: $url")
-                val parsed = DouyinParser.parseUrl(url)
-                if (parsed != null) {
+                val parsed = DouyinParser.parseUrl(url, getApplication())
+                if (parsed != null && parsed.videoUrl.isNotEmpty()) {
                     _parseState.value = ParseState.Parsed(parsed)
                 } else {
-                    _parseState.value = ParseState.Error("解析失败，未提取到有效无水印视频。您也可以先手动添加并尝试下载。")
+                    _parseState.value = ParseState.Error("解析失败，请检查链接是否有效或网络连接是否正常。")
                 }
             } catch (e: Exception) {
                 _parseState.value = ParseState.Error("解析异常: ${e.message}")

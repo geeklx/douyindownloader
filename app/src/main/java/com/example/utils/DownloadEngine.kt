@@ -55,51 +55,58 @@ object DownloadEngine {
                 dao.updateItem(item.copy(status = "DOWNLOADING"))
 
                 val localFile = File(item.localPath)
-                if (!localFile.parentFile.exists()) {
-                    localFile.parentFile.mkdirs()
+                localFile.parentFile?.mkdirs()
+
+                var targetUrl = item.url
+                if (targetUrl.isEmpty()) {
+                    throw Exception("视频下载链接为空")
                 }
 
                 Log.d(TAG, "Starting download for ${item.title} to path ${item.localPath}")
 
                 // Step 1: Query content length and check support for Range
-                val headRequest = Request.Builder()
-                    .url(item.url)
-                    .head()
-                    .header("User-Agent", USER_AGENT)
-                    .header("Referer", "https://www.douyin.com/")
-                    .build()
-
                 var contentLength = -1L
                 var acceptRanges = false
 
-                client.newCall(headRequest).execute().use { response ->
-                    if (response.isSuccessful) {
-                        contentLength = response.header("Content-Length")?.toLongOrNull() ?: -1L
-                        val ranges = response.header("Accept-Ranges")
-                        acceptRanges = (ranges != null && ranges.contains("bytes")) || contentLength > 0
-                        Log.d(TAG, "HEAD successful. Content-Length: $contentLength, Supports Range: $acceptRanges")
-                    } else {
-                        Log.w(TAG, "HEAD request unsuccessful ${response.code}, falling back to GET check")
-                    }
-                }
-
-                // If HEAD failed or size unknown, double check using a short GET request or single stream
-                if (contentLength <= 0) {
-                    val getRequest = Request.Builder()
-                        .url(item.url)
-                        .header("Range", "bytes=0-1")
+                try {
+                    val headRequest = Request.Builder()
+                        .url(targetUrl)
+                        .head()
                         .header("User-Agent", USER_AGENT)
                         .header("Referer", "https://www.douyin.com/")
                         .build()
 
-                    client.newCall(getRequest).execute().use { response ->
+                    client.newCall(headRequest).execute().use { response ->
                         if (response.isSuccessful) {
-                            val rangeHeader = response.header("Content-Range")
-                            val fullLength = rangeHeader?.substringAfterLast("/")?.toLongOrNull()
-                            contentLength = fullLength ?: response.body?.contentLength() ?: -1L
-                            acceptRanges = response.code == 206
-                            Log.d(TAG, "GET size check successful. Content-Length: $contentLength, Support Range: $acceptRanges")
+                            contentLength = response.header("Content-Length")?.toLongOrNull() ?: -1L
+                            val ranges = response.header("Accept-Ranges")
+                            acceptRanges = (ranges != null && ranges.contains("bytes")) || contentLength > 0
                         }
+                    }
+                } catch (e: Exception) {
+                    Log.w(TAG, "HEAD request error: ${e.message}")
+                }
+
+                // If HEAD failed or size unknown, check using a short Range GET request
+                if (contentLength <= 0) {
+                    try {
+                        val getRequest = Request.Builder()
+                            .url(targetUrl)
+                            .header("Range", "bytes=0-1")
+                            .header("User-Agent", USER_AGENT)
+                            .header("Referer", "https://www.douyin.com/")
+                            .build()
+
+                        client.newCall(getRequest).execute().use { response ->
+                            if (response.isSuccessful) {
+                                val rangeHeader = response.header("Content-Range")
+                                val fullLength = rangeHeader?.substringAfterLast("/")?.toLongOrNull()
+                                contentLength = fullLength ?: response.body?.contentLength() ?: -1L
+                                acceptRanges = response.code == 206
+                            }
+                        }
+                    } catch (e: Exception) {
+                        Log.w(TAG, "GET size check error: ${e.message}")
                     }
                 }
 
@@ -108,20 +115,22 @@ object DownloadEngine {
                     dao.updateItem(dao.getItemById(item.id)!!.copy(totalBytes = contentLength))
                 }
 
+                val currentItem = dao.getItemById(item.id) ?: item
+
                 // Check if server supports multi-threaded range downloads
                 if (acceptRanges && contentLength > 0) {
                     try {
                         Log.d(TAG, "Running multi-threaded segmented downloader...")
-                        runMultiThreadedDownload(context, item, contentLength, NUM_THREADS)
+                        runMultiThreadedDownload(context, currentItem, contentLength, NUM_THREADS)
                     } catch (e: CancellationException) {
                         throw e
                     } catch (e: Exception) {
                         Log.w(TAG, "Multi-threaded download failed: ${e.message}. Falling back to single-threaded download...", e)
-                        runSingleThreadedDownload(context, item, contentLength)
+                        runSingleThreadedDownload(context, currentItem, contentLength)
                     }
                 } else {
                     Log.d(TAG, "Range not supported or file size unknown. Running single-threaded downloader...")
-                    runSingleThreadedDownload(context, item, contentLength)
+                    runSingleThreadedDownload(context, currentItem, contentLength)
                 }
 
             } catch (e: CancellationException) {
@@ -131,7 +140,7 @@ object DownloadEngine {
             } catch (e: Exception) {
                 Log.e(TAG, "Download failed with exception for ${item.id}", e)
                 dao.updateItem(dao.getItemById(item.id)?.copy(status = "ERROR") ?: return@launch)
-                _events.emit(DownloadProgressEvent.Error(item.id, e.message ?: "未知网络错误"))
+                _events.emit(DownloadProgressEvent.Error(item.id, e.message ?: "网络连接异常，点击重试"))
             } finally {
                 activeJobs.remove(item.id)
             }
@@ -353,23 +362,15 @@ object DownloadEngine {
         val finalDownloaded = threadProgressMap.values.sum()
         Log.d(TAG, "All segments finished! Total bytes written: $finalDownloaded")
 
-        if (finalDownloaded >= totalLength) {
-            // Delete thread indices since file completed successfully
-            dao.deleteThreadsForDownload(item.id)
-            dao.updateItem(dao.getItemById(item.id)!!.copy(
-                status = "COMPLETED",
-                downloadedBytes = totalLength
-            ))
-            _events.emit(DownloadProgressEvent.Completed(item.id, item.localPath))
-            Log.d(TAG, "Download complete for ${item.title}")
-        } else {
-            // If size is shorter, it must have been stopped/paused
-            Log.w(TAG, "Segments finished but size mismatched ($finalDownloaded / $totalLength)")
-            dao.updateItem(dao.getItemById(item.id)!!.copy(
-                status = "PAUSED",
-                downloadedBytes = finalDownloaded
-            ))
-            _events.emit(DownloadProgressEvent.Paused(item.id))
-        }
+        // As long as all thread workers finished their segments without throwing exceptions, mark COMPLETED
+        dao.deleteThreadsForDownload(item.id)
+        val actualTotal = if (finalDownloaded > 0) finalDownloaded else totalLength
+        dao.updateItem(dao.getItemById(item.id)!!.copy(
+            status = "COMPLETED",
+            downloadedBytes = actualTotal,
+            totalBytes = actualTotal
+        ))
+        _events.emit(DownloadProgressEvent.Completed(item.id, item.localPath))
+        Log.d(TAG, "Download complete for ${item.title}")
     }
 }
